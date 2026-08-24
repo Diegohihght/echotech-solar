@@ -631,6 +631,7 @@ function recomendaciones(p, calc){
 
 let canvasCtx = null, canvasEl = null;
 let dragState = null;
+let rotateState = null;
 
 function initCanvas(){
   canvasEl = $('#roofCanvas');
@@ -680,6 +681,20 @@ function pointInPolygon(pt, poly){
   return inside;
 }
 
+// Hit-test que sí funciona aunque el panel esté girado: convierte el punto al
+// espacio local (sin rotación) del panel antes de comparar contra su rectángulo.
+function pointInPanel(pt, pn){
+  const cx = pn.x+pn.w/2, cy = pn.y+pn.h/2;
+  const rad = -((pn.angle||0) * Math.PI/180);
+  const dx = pt.x-cx, dy = pt.y-cy;
+  const lx = dx*Math.cos(rad) - dy*Math.sin(rad);
+  const ly = dx*Math.sin(rad) + dy*Math.cos(rad);
+  return Math.abs(lx) <= pn.w/2 && Math.abs(ly) <= pn.h/2;
+}
+function findPanelAt(pt){
+  return PROJECT.render.panels.slice().reverse().find(pn=> pointInPanel(pt, pn));
+}
+
 function onCanvasDown(evt){
   const pt = canvasPoint(evt);
   const mode = $('input[name="drawMode"]:checked')?.value || 'techo';
@@ -712,25 +727,24 @@ function onCanvasDown(evt){
   }
   if(mode==='panel'){
     // ¿clic sobre panel existente? -> iniciar arrastre
-    const hit = PROJECT.render.panels.slice().reverse().find(pn=> pt.x>=pn.x && pt.x<=pn.x+pn.w && pt.y>=pn.y && pt.y<=pn.y+pn.h);
+    const hit = findPanelAt(pt);
     if(hit){ dragState = {panel:hit, offX:pt.x-hit.x, offY:pt.y-hit.y}; return; }
     const sz = panelPxSize();
-    PROJECT.render.panels.push({id:uid(), x:pt.x-sz.w/2, y:pt.y-sz.h/2, w:sz.w, h:sz.h});
+    PROJECT.render.panels.push({id:uid(), x:pt.x-sz.w/2, y:pt.y-sz.h/2, w:sz.w, h:sz.h, angle:0});
     drawCanvas();
     return;
   }
   if(mode==='rotar'){
-    const hit = PROJECT.render.panels.slice().reverse().find(pn=> pt.x>=pn.x && pt.x<=pn.x+pn.w && pt.y>=pn.y && pt.y<=pn.y+pn.h);
+    const hit = findPanelAt(pt);
     if(hit){
       const cx = hit.x+hit.w/2, cy = hit.y+hit.h/2;
-      const newW = hit.h, newH = hit.w;
-      hit.x = cx-newW/2; hit.y = cy-newH/2; hit.w = newW; hit.h = newH;
-      drawCanvas();
+      const startPointerAngle = Math.atan2(pt.y-cy, pt.x-cx) * 180/Math.PI;
+      rotateState = {panel:hit, cx, cy, startAngle: hit.angle||0, startPointerAngle};
     }
     return;
   }
   if(mode==='borrar'){
-    const idx = PROJECT.render.panels.slice().reverse().findIndex(pn=> pt.x>=pn.x && pt.x<=pn.x+pn.w && pt.y>=pn.y && pt.y<=pn.y+pn.h);
+    const idx = PROJECT.render.panels.slice().reverse().findIndex(pn=> pointInPanel(pt, pn));
     if(idx>=0){
       const realIdx = PROJECT.render.panels.length-1-idx;
       PROJECT.render.panels.splice(realIdx,1);
@@ -745,13 +759,25 @@ function onCanvasMove(evt){
     drawCanvas();
     return;
   }
+  if(rotateState){
+    const pt = canvasPoint(evt);
+    const currentPointerAngle = Math.atan2(pt.y-rotateState.cy, pt.x-rotateState.cx) * 180/Math.PI;
+    let newAngle = rotateState.startAngle + (currentPointerAngle - rotateState.startPointerAngle);
+    newAngle = ((newAngle % 360) + 360) % 360;
+    // Imán suave a los 45° (0,45,90,135...) para alinear fácil con techos — se puede pasar de largo sin problema.
+    const nearest45 = Math.round(newAngle/45)*45;
+    if(Math.abs(newAngle-nearest45) < 3) newAngle = nearest45 % 360;
+    rotateState.panel.angle = newAngle;
+    drawCanvas();
+    return;
+  }
   if(!dragState) return;
   const pt = canvasPoint(evt);
   dragState.panel.x = pt.x-dragState.offX;
   dragState.panel.y = pt.y-dragState.offY;
   drawCanvas();
 }
-function onCanvasUp(){ dragState=null; updatePanelCount(); }
+function onCanvasUp(){ dragState=null; rotateState=null; updatePanelCount(); }
 
 function drawCanvas(){
   if(!canvasCtx) return;
@@ -784,20 +810,26 @@ function drawCanvas(){
     });
   }
 
-  // paneles
+  // paneles (cada uno se dibuja centrado en su propio origen y luego se rota/traslada)
   canvasCtx.font = '10px sans-serif';
   PROJECT.render.panels.forEach((pn,i)=>{
-    const grad = canvasCtx.createLinearGradient(pn.x,pn.y,pn.x+pn.w,pn.y+pn.h);
+    const cx = pn.x+pn.w/2, cy = pn.y+pn.h/2;
+    canvasCtx.save();
+    canvasCtx.translate(cx, cy);
+    canvasCtx.rotate((pn.angle||0) * Math.PI/180);
+    const hw = pn.w/2, hh = pn.h/2;
+    const grad = canvasCtx.createLinearGradient(-hw,-hh, hw,hh);
     grad.addColorStop(0,'#1C74B8'); grad.addColorStop(1,'#2E9BE6');
     canvasCtx.fillStyle = grad;
-    canvasCtx.fillRect(pn.x,pn.y,pn.w,pn.h);
+    canvasCtx.fillRect(-hw,-hh, pn.w, pn.h);
     canvasCtx.strokeStyle = '#0B1F33'; canvasCtx.lineWidth=1;
-    canvasCtx.strokeRect(pn.x,pn.y,pn.w,pn.h);
+    canvasCtx.strokeRect(-hw,-hh, pn.w, pn.h);
     // rejilla de celdas simple
     canvasCtx.strokeStyle = 'rgba(255,255,255,0.35)';
     const rows=4, cols=2;
-    for(let r=1;r<rows;r++){ canvasCtx.beginPath(); canvasCtx.moveTo(pn.x, pn.y+pn.h*r/rows); canvasCtx.lineTo(pn.x+pn.w, pn.y+pn.h*r/rows); canvasCtx.stroke(); }
-    for(let c=1;c<cols;c++){ canvasCtx.beginPath(); canvasCtx.moveTo(pn.x+pn.w*c/cols, pn.y); canvasCtx.lineTo(pn.x+pn.w*c/cols, pn.y+pn.h); canvasCtx.stroke(); }
+    for(let r=1;r<rows;r++){ canvasCtx.beginPath(); canvasCtx.moveTo(-hw, -hh+pn.h*r/rows); canvasCtx.lineTo(hw, -hh+pn.h*r/rows); canvasCtx.stroke(); }
+    for(let c=1;c<cols;c++){ canvasCtx.beginPath(); canvasCtx.moveTo(-hw+pn.w*c/cols, -hh); canvasCtx.lineTo(-hw+pn.w*c/cols, hh); canvasCtx.stroke(); }
+    canvasCtx.restore();
   });
 
   // línea de calibración en curso
@@ -826,7 +858,7 @@ function autoFillPanels(){
     for(let x=minX; x+sz.w<=maxX; x+=sz.w+spacing){
       const corners = [{x,y},{x:x+sz.w,y},{x,y:y+sz.h},{x:x+sz.w,y:y+sz.h},{x:x+sz.w/2,y:y+sz.h/2}];
       if(corners.every(c=>pointInPolygon(c, roof))){
-        placed.push({id:uid(), x, y, w:sz.w, h:sz.h});
+        placed.push({id:uid(), x, y, w:sz.w, h:sz.h, angle:0});
       }
     }
   }
@@ -1496,7 +1528,7 @@ function renderRenderTab(){
       </div>
       <div class="field"><label>Separación entre paneles (cm)</label><input id="f-spacing" type="number" value="${r.spacingCm}"></div>
     </div>
-    <p class="help">Modo diagrama: haz clic para marcar las esquinas del techo y usa "Auto-acomodar". Modo foto: sube la imagen aérea y coloca los paneles manualmente arrastrándolos. "Rotar panel": toca un panel para girarlo 90° (útil cuando un panel necesita ir distinto al resto de la fila). Ajusta la escala para que el tamaño del panel se vea realista.</p>
+    <p class="help">Modo diagrama: haz clic para marcar las esquinas del techo y usa "Auto-acomodar". Modo foto: sube la imagen aérea y coloca los paneles manualmente arrastrándolos. "Rotar panel": mantén el clic sobre un panel y arrastra alrededor de su centro para girarlo al ángulo que quieras (se ajusta solo cerca de 0°/45°/90°... para alinear fácil). Ajusta la escala para que el tamaño del panel se vea realista.</p>
   </div>
   `;
 }
