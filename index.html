@@ -1164,6 +1164,11 @@ function renderCatalogoTab(){
 
   return `
   <div class="card">
+    <div class="card-head"><div><h3>Catálogo de equipos</h3></div>
+      <button class="btn sm gold" id="btnMergeDefaults">↻ Traer modelos nuevos de fábrica</button></div>
+    <p class="help">Cuando agrego modelos nuevos al catálogo base (paneles/inversores), tu copia guardada no se actualiza sola. Este botón trae los que te falten sin tocar ni borrar los tuyos.</p>
+  </div>
+  <div class="card">
     <div class="card-head"><div><div class="eyebrow">Paso 3</div><h3>Modelos de paneles</h3></div>
       <button class="btn primary sm" id="btnAddPanel">+ Agregar panel</button></div>
     <p class="help">El precio mostrado en grande es tu <b>precio de venta</b> (costo + margen). Captura tu costo real de proveedor y el % que quieras ganar — la cotización siempre usa el precio de venta calculado.</p>
@@ -1644,9 +1649,18 @@ async function loadSavedList(){
 /* ---------------------------- Acciones ---------------------------- */
 
 async function saveProjectFlow(){
-  if(!PROJECT.folio){ PROJECT.folio = SETTINGS.folioCounter; SETTINGS.folioCounter += 1; await storageSet('settings', SETTINGS, false); }
+  const wasNewFolio = !PROJECT.folio;
+  if(wasNewFolio){ PROJECT.folio = SETTINGS.folioCounter; SETTINGS.folioCounter += 1; await storageSet('settings', SETTINGS, false); }
   PROJECT.fecha = PROJECT.fecha || new Date().toISOString();
-  await storageSet('quote:'+PROJECT.id, PROJECT, false);
+  const ok = await storageSet('quote:'+PROJECT.id, PROJECT, false);
+  if(!ok){
+    if(wasNewFolio){ PROJECT.folio = null; SETTINGS.folioCounter -= 1; } // revertir folio si no se guardó nada
+    openModal('⚠️ No se pudo guardar', `
+      <p>El proyecto <b>no se guardó</b> — el navegador rechazó el espacio de almacenamiento (normalmente porque una foto del render aéreo es muy pesada, o el modo de navegación privada/incógnito no permite guardar).</p>
+      <p class="help">Prueba: 1) quita la foto en la pestaña Render aéreo y usa el modo diagrama, o 2) sal del modo incógnito, o 3) exporta el CSV ahora mismo como respaldo antes de seguir editando.</p>
+    `, ()=>{});
+    return;
+  }
   toast('Proyecto guardado ✓ Folio #'+String(PROJECT.folio).padStart(3,'0'));
   renderApp();
   if(activeTab==='enviar') loadSavedList();
@@ -1787,6 +1801,11 @@ function attachTabHandlers(){
   $('#s-iva')?.addEventListener('input', e=>{SETTINGS.ivaRate=Number(e.target.value); PROJECT.cot.ivaRate=Number(e.target.value); storageSet('settings',SETTINGS,false);});
 
   // Catálogo
+  $('#btnMergeDefaults')?.addEventListener('click', async ()=>{
+    const n = await mergeCatalogDefaults();
+    toast(n>0 ? `${n} modelo(s) nuevo(s) agregados a tu catálogo` : 'Ya tienes todos los modelos disponibles');
+    renderApp();
+  });
   $('#btnAddPanel')?.addEventListener('click', ()=>{
     const blank = {id:uid(), marca:'', modelo:'', wp:500, vmp:41, imp:12, voc:49, isc:13, tcVoc:-0.29, tcPmax:-0.36, largo:2100, ancho:1050, costo:2500, margen:25, tipo:'Monocristalino'};
     openModal('Nuevo panel', panelFormFields(blank), async (data)=>{
@@ -1958,6 +1977,22 @@ function refreshLiveStats(){
 }
 
 /* ---------------------------- Arranque ---------------------------- */
+
+async function mergeCatalogDefaults(){
+  const existingPanelIds = new Set(CATALOG.panels.map(p=>p.id));
+  const newPanels = DEFAULT_PANELS.filter(p=>!existingPanelIds.has(p.id));
+  const existingInvIds = new Set(CATALOG.inverters.map(v=>v.id));
+  const newInvs = DEFAULT_INVERTERS.filter(v=>!existingInvIds.has(v.id));
+  if(newPanels.length){
+    CATALOG.panels.push(...JSON.parse(JSON.stringify(newPanels)));
+    await storageSet('catalog-panels', CATALOG.panels, false);
+  }
+  if(newInvs.length){
+    CATALOG.inverters.push(...JSON.parse(JSON.stringify(newInvs)));
+    await storageSet('catalog-inverters', CATALOG.inverters, false);
+  }
+  return newPanels.length + newInvs.length;
+}
 
 async function boot(){
   CATALOG.panels = await storageGet('catalog-panels', false, null) || DEFAULT_PANELS.slice();
