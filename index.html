@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es-MX">
 <head>
@@ -340,6 +339,9 @@ const DEFAULT_PANELS = [
    tcVoc:-0.28, tcPmax:-0.35, largo:2278, ancho:1134, costo:2800, margen:0, tipo:'Monocristalino bifacial'},
   {id:'panel-450', marca:'Genérico', modelo:'Mono PERC 450W', wp:450, vmp:41.2, imp:10.93, voc:49.6, isc:11.62,
    tcVoc:-0.27, tcPmax:-0.34, largo:2094, ancho:1038, costo:2150, margen:0, tipo:'Monocristalino'},
+  // Ficha técnica real + precio de cotización Solarever (SE-617, jun-2026)
+  {id:'panel-solarever-630', marca:'Solarever', modelo:'SE-182*105-630M-132-BD TOPCon Bifacial 630W', wp:630, vmp:41.82, imp:15.06, voc:49.34, isc:16.27,
+   tcVoc:-0.25, tcPmax:-0.29, largo:2382, ancho:1134, costo:1641.35, margen:0, tipo:'Monocristalino TOPCon bifacial'},
 ];
 const DEFAULT_INVERTERS = [
   {id:'inv-growatt10', marca:'Growatt', modelo:'MIN 10000TL-X', pac:10000, pdcMax:13000, numMppt:2,
@@ -367,24 +369,29 @@ const DEFAULT_QUOTE_ITEMS = () => ([
 // por pieza de venta. cantidad_final = ceil(factor*base / empaque), con mínimo opcional.
 const DEFAULT_ESTRUCTURAS = {
   inclinada: {
-    nombre: 'Con inclinación (techo de concreto o lámina plana)',
+    nombre: 'Con inclinación (piernas ajustables — concreto/losa)',
     items: [
-      {id:uid(), nombre:'Triángulo de aluminio ajustable', unidad:'pza', base:'panel', factor:2, empaque:1, costo:380, margen:0},
-      {id:uid(), nombre:'Riel de aluminio (tramo 3m)', unidad:'tramo 3m', base:'panel', factor:2.2, empaque:3, costo:290, margen:0},
-      {id:uid(), nombre:'Grapa intermedia (mid clamp)', unidad:'pza', base:'panel', factor:1.6, empaque:1, costo:35, margen:0},
-      {id:uid(), nombre:'Grapa final (end clamp)', unidad:'pza', base:'panel', factor:0.4, empaque:1, costo:40, margen:0},
-      {id:uid(), nombre:'Taquete químico / anclaje a losa', unidad:'pza', base:'panel', factor:4, empaque:1, costo:15, margen:0},
-      {id:uid(), nombre:'Kit de tornillería inoxidable', unidad:'kit', base:'panel', factor:1, empaque:1, costo:25, margen:0},
+      // Datos reales de orden de compra ejecutada (proyecto de 72 paneles, Grupo Solarever, abr-2026)
+      {id:uid(), nombre:'Riel de aluminio 2400mm', unidad:'pza', base:'panel', factor:1, empaque:1, costo:143.34, margen:0},
+      {id:uid(), nombre:'Pierna delantera ajustable', unidad:'pza', base:'panel', factor:1.25, empaque:1, costo:52.00, margen:0},
+      {id:uid(), nombre:'Pierna trasera ajustable reforzada', unidad:'pza', base:'panel', factor:1.25, empaque:1, costo:143.34, margen:0},
+      {id:uid(), nombre:'Kit empalme de riel con placa de tierra', unidad:'pza', base:'panel', factor:0.5, empaque:1, costo:30.68, margen:0},
+      {id:uid(), nombre:'Grapa final reforzada 35/30mm', unidad:'pza', base:'panel', factor:1, empaque:1, costo:34.84, margen:0},
+      {id:uid(), nombre:'Grapa intermedia reforzada 35/30mm', unidad:'pza', base:'panel', factor:1.5, empaque:1, costo:34.84, margen:0},
+      {id:uid(), nombre:'Clip de tierra', unidad:'pza', base:'panel', factor:2.5, empaque:1, costo:3.47, margen:0},
+      {id:uid(), nombre:'Tornillo de expansión M8x60', unidad:'pza', base:'panel', factor:5, empaque:1, costo:13.52, margen:0},
     ],
   },
   plana: {
-    nombre: 'Sin inclinación (techo de lámina ya inclinado)',
+    nombre: 'Sin inclinación (lámina/techo metálico trapezoidal)',
     items: [
-      {id:uid(), nombre:'Riel de aluminio (tramo 3m)', unidad:'tramo 3m', base:'panel', factor:2.2, empaque:3, costo:290, margen:0},
-      {id:uid(), nombre:'Grapa intermedia (mid clamp)', unidad:'pza', base:'panel', factor:1.6, empaque:1, costo:35, margen:0},
-      {id:uid(), nombre:'Grapa final (end clamp)', unidad:'pza', base:'panel', factor:0.4, empaque:1, costo:40, margen:0},
-      {id:uid(), nombre:'Gancho / L-foot para lámina', unidad:'pza', base:'panel', factor:4, empaque:1, costo:45, margen:0},
-      {id:uid(), nombre:'Tornillo autotaladrante con neopreno', unidad:'pza', base:'panel', factor:4, empaque:1, costo:6, margen:0},
+      // Proporciones de la ficha técnica Antai MetaRoof-MT Short Rail, precios de
+      // órdenes de compra reales (Grupo Solarever, proyectos de 12 y 40 paneles).
+      {id:uid(), nombre:'Riel corto para lámina trapezoidal', unidad:'pza', base:'panel', factor:2.2, empaque:1, costo:69.80, margen:0},
+      {id:uid(), nombre:'Grapa final reforzada 35/30mm', unidad:'pza', base:'panel', factor:0.4, empaque:1, minimo:4, costo:31.75, margen:0},
+      {id:uid(), nombre:'Grapa intermedia reforzada 35/30mm', unidad:'pza', base:'panel', factor:1.75, empaque:1, costo:31.75, margen:0},
+      {id:uid(), nombre:'Clip de tierra', unidad:'pza', base:'panel', factor:1.75, empaque:1, costo:3.47, margen:0},
+      {id:uid(), nombre:'Clip para cable (sin precio de referencia — ajústalo)', unidad:'pza', base:'panel', factor:1, empaque:1, costo:0, margen:0},
     ],
   },
   campo: {
@@ -401,8 +408,8 @@ const DEFAULT_ESTRUCTURAS = {
 };
 const DEFAULT_MATERIALES_COMUNES = [
   {id:uid(), nombre:'Tubo conduit EMT/PVC 3/4" (tramo 3m)', unidad:'tramo 3m', base:'distancia', factor:2, empaque:3, costo:95, margen:0},
-  {id:uid(), nombre:'Cable fotovoltaico DC (rojo/negro)', unidad:'m', base:'distancia', factor:2.2, empaque:1, costo:22, margen:0},
-  {id:uid(), nombre:'Cable THHN lado CA', unidad:'m', base:'distancia', factor:2.2, empaque:1, costo:18, margen:0},
+  {id:uid(), nombre:'Cable fotovoltaico DC (rojo/negro, arreglo→inversor)', unidad:'m', base:'distanciaDC', factor:2.2, empaque:1, costo:22, margen:0},
+  {id:uid(), nombre:'Cable THHN lado CA (inversor→tablero)', unidad:'m', base:'distanciaAC', factor:2.2, empaque:1, costo:18, margen:0},
   {id:uid(), nombre:'Conectores MC4 (par)', unidad:'par', base:'panel', factor:0.3, empaque:1, costo:60, margen:0},
   {id:uid(), nombre:'Condulet LB', unidad:'pza', base:'distancia', factor:0.15, empaque:1, costo:70, margen:0, minimo:2},
   {id:uid(), nombre:'Varilla copperweld 3m (tierra física)', unidad:'pza', base:'fijo', factor:1, empaque:1, costo:220, margen:0, minimo:1},
@@ -431,7 +438,7 @@ function blankProject(){
     cliente: {nombre:'', telefono:'', email:'', direccion:'', municipio:''},
     medidores: [blankMedidor(1)],
     sitio: {estado:'Puebla', hsp: HSP_ESTADOS['Puebla'], eficiencia:0.77, tempMin:8, tempMax:38},
-    dim: {panelId: DEFAULT_PANELS[0].id, inversorAutoId:null, inversorManualId:null, numModulos:0, numInversores:1, modulosPorCadena:null, tipoEstructura:'inclinada', distanciaTablero:10},
+    dim: {panelId: DEFAULT_PANELS[0].id, inversorAutoId:null, inversorManualId:null, numModulos:0, numInversores:1, modulosPorCadena:null, tipoEstructura:'inclinada', distanciaArregloInversor:8, distanciaInversorTablero:3},
     render: {mode:'diagram', roof:[], panels:[], photoData:null, scale:0.018, orientation:'portrait', spacingCm:2, marginCm:30},
     cot: {items: DEFAULT_QUOTE_ITEMS(), ivaRate:16, notas:'Cotización válida por 15 días naturales. No incluye obra civil no especificada ni trámites adicionales fuera de interconexión CFE.'},
   };
@@ -455,7 +462,14 @@ function migrateProject(p){
   if(!p.render) p.render = {mode:'diagram', roof:[], panels:[], photoData:null, scale:0.018, orientation:'portrait', spacingCm:2, marginCm:30};
   if(p.render.photoData===undefined) p.render.photoData = null;
   if(!p.dim.tipoEstructura) p.dim.tipoEstructura = 'inclinada';
-  if(p.dim.distanciaTablero===undefined) p.dim.distanciaTablero = 10;
+  if(p.dim.distanciaTablero!==undefined && p.dim.distanciaArregloInversor===undefined){
+    // Migración: proyectos guardados con una sola distancia genérica.
+    // Se asigna todo al tramo arreglo→inversor y se deja el tramo inversor→tablero en 0 para que lo revises.
+    p.dim.distanciaArregloInversor = p.dim.distanciaTablero;
+    p.dim.distanciaInversorTablero = 0;
+  }
+  if(p.dim.distanciaArregloInversor===undefined) p.dim.distanciaArregloInversor = 8;
+  if(p.dim.distanciaInversorTablero===undefined) p.dim.distanciaInversorTablero = 3;
   return p;
 }
 
@@ -532,10 +546,13 @@ function calcDimensionamiento(p){
 
 function calcMateriales(p, calc){
   const numModulos = calc.numModulos || 0;
-  const distancia = Number(p.dim.distanciaTablero) || 0;
+  const distDC = Number(p.dim.distanciaArregloInversor) || 0;
+  const distAC = Number(p.dim.distanciaInversorTablero) || 0;
   const numCadenas = calc.cadena && calc.cadena.seriesMax>0 ? Math.max(1, Math.ceil(numModulos / calc.cadena.seriesMax)) : 1;
 
-  const bases = {panel: numModulos, distancia: distancia, cadena: numCadenas, fijo: 1};
+  // 'distancia' = tramo total (arreglo→inversor→tablero), para ductos/condulets que corren por ambos tramos.
+  // 'distanciaDC' = solo arreglo→inversor (cableado DC). 'distanciaAC' = solo inversor→tablero (cableado CA).
+  const bases = {panel: numModulos, distancia: distDC+distAC, distanciaDC: distDC, distanciaAC: distAC, cadena: numCadenas, fijo: 1};
 
   const estructuraItems = (CATALOG.estructuras[p.dim.tipoEstructura]?.items) || [];
   const comunes = CATALOG.comunes || [];
@@ -1171,7 +1188,7 @@ function renderMaterialesCatalogoCard(){
   ];
   const isEstructura = activeMaterialSet!=='comunes';
   const items = isEstructura ? (CATALOG.estructuras[activeMaterialSet]?.items||[]) : (CATALOG.comunes||[]);
-  const baseLabel = {panel:'por panel', distancia:'por metro de distancia', cadena:'por cadena', fijo:'fijo', porcentaje:'% de materiales'};
+  const baseLabel = {panel:'por panel', distancia:'por metro (tramo total)', distanciaDC:'por metro (arreglo→inversor)', distanciaAC:'por metro (inversor→tablero)', cadena:'por cadena', fijo:'fijo', porcentaje:'% de materiales'};
 
   const itemsHtml = items.map(it=>`
     <div class="catalog-item" data-mat-item="${it.id}">
@@ -1194,6 +1211,7 @@ function renderMaterialesCatalogoCard(){
     </div>
     <p class="help">${isEstructura ? 'Piezas necesarias por cada panel para este tipo de estructura.' : 'Materiales eléctricos y mano de obra, calculados por panel, por metro de distancia al tablero, por cadena, o fijos por proyecto.'}</p>
     ${itemsHtml}
+    <button class="btn sm ghost" id="btnResetMaterialSet" style="margin-top:4px;">↻ Restaurar valores de fábrica de esta lista</button>
   </div>`;
 }
 
@@ -1206,7 +1224,9 @@ function materialFormFields(it){
       <div class="field"><label>Base de cálculo</label>
         <select data-k="base">
           <option value="panel" ${it.base==='panel'?'selected':''}>Por panel</option>
-          <option value="distancia" ${it.base==='distancia'?'selected':''}>Por metro de distancia</option>
+          <option value="distancia" ${it.base==='distancia'?'selected':''}>Por metro (tramo total: DC+CA)</option>
+          <option value="distanciaDC" ${it.base==='distanciaDC'?'selected':''}>Por metro (solo arreglo→inversor)</option>
+          <option value="distanciaAC" ${it.base==='distanciaAC'?'selected':''}>Por metro (solo inversor→tablero)</option>
           <option value="cadena" ${it.base==='cadena'?'selected':''}>Por cadena</option>
           <option value="fijo" ${it.base==='fijo'?'selected':''}>Fijo por proyecto</option>
           <option value="porcentaje" ${it.base==='porcentaje'?'selected':''}>% de materiales</option>
@@ -1354,14 +1374,16 @@ function renderDimensionTab(){
   <div class="card">
     <div class="eyebrow">Estructura e instalación</div>
     <h3>Materiales de montaje, cableado y mano de obra</h3>
-    <div class="grid">
+    <div class="grid3">
       <div class="field"><label>Tipo de estructura</label>
         <select id="f-tipoestructura">
           ${Object.entries(DEFAULT_ESTRUCTURAS).map(([key,e])=>`<option value="${key}" ${PROJECT.dim.tipoEstructura===key?'selected':''}>${esc((CATALOG.estructuras[key]||e).nombre)}</option>`).join('')}
         </select>
       </div>
-      <div class="field"><label>Distancia estimada arreglo → tablero (m)</label><input id="f-distanciatablero" type="number" step="0.5" value="${PROJECT.dim.distanciaTablero}"></div>
+      <div class="field"><label>Distancia arreglo → inversor (m)</label><input id="f-distanciadc" type="number" step="0.5" value="${PROJECT.dim.distanciaArregloInversor}"></div>
+      <div class="field"><label>Distancia inversor → tablero (m)</label><input id="f-distanciaac" type="number" step="0.5" value="${PROJECT.dim.distanciaInversorTablero}"></div>
     </div>
+    <p class="help">El cable DC usa el primer tramo, el cable CA el segundo. Tubería y condulets usan la suma de ambos (van por el mismo ducto).</p>
     <div id="materialesPreviewWrap">${renderMaterialesPreview(calc)}</div>
   </div>
 
@@ -1607,6 +1629,16 @@ async function loadSavedList(){
         <button class="btn sm danger" data-del-quote="${p.id}">Eliminar</button>
       </div>
     </div>`).join('');
+  // Delegación de eventos: los botones se pintan async, después de que attachTabHandlers
+  // ya corrió, así que se enlazan aquí directamente en vez de depender del ciclo normal.
+  $$('[data-load-quote]', el).forEach(b=> b.onclick=async ()=>{
+    const p = await storageGet('quote:'+b.dataset.loadQuote, false, null);
+    if(p){ PROJECT = migrateProject(p); activeTab='cliente'; renderApp(); toast('Proyecto cargado'); }
+  });
+  $$('[data-del-quote]', el).forEach(b=> b.onclick=async ()=>{
+    await storageDelete('quote:'+b.dataset.delQuote, false);
+    loadSavedList();
+  });
 }
 
 /* ---------------------------- Acciones ---------------------------- */
@@ -1830,11 +1862,22 @@ function attachTabHandlers(){
     await saveMaterialList();
     renderApp();
   });
+  $('#btnResetMaterialSet')?.addEventListener('click', async ()=>{
+    if(!confirm('Esto reemplaza esta lista con los valores de fábrica más recientes y borra tus ediciones en ella. ¿Continuar?')) return;
+    if(activeMaterialSet==='comunes'){
+      CATALOG.comunes = JSON.parse(JSON.stringify(DEFAULT_MATERIALES_COMUNES));
+    } else {
+      CATALOG.estructuras[activeMaterialSet] = JSON.parse(JSON.stringify(DEFAULT_ESTRUCTURAS[activeMaterialSet]));
+    }
+    await saveMaterialList();
+    toast('Lista restaurada'); renderApp();
+  });
 
   // Dimensionamiento
   $('#f-panelselect')?.addEventListener('change', e=>{ PROJECT.dim.panelId=e.target.value; renderApp(); });
   $('#f-tipoestructura')?.addEventListener('change', e=>{ PROJECT.dim.tipoEstructura=e.target.value; refreshMaterialesPreview(); });
-  $('#f-distanciatablero')?.addEventListener('input', e=>{ PROJECT.dim.distanciaTablero=Number(e.target.value); refreshMaterialesPreview(); });
+  $('#f-distanciadc')?.addEventListener('input', e=>{ PROJECT.dim.distanciaArregloInversor=Number(e.target.value); refreshMaterialesPreview(); });
+  $('#f-distanciaac')?.addEventListener('input', e=>{ PROJECT.dim.distanciaInversorTablero=Number(e.target.value); refreshMaterialesPreview(); });
   $('#btnInsertarMateriales')?.addEventListener('click', insertarMaterialesEnCotizacion);
 
   // Render aéreo
@@ -1901,14 +1944,6 @@ function attachTabHandlers(){
   $('#btnCsv')?.addEventListener('click', exportCsv);
   $('#btnRefreshList')?.addEventListener('click', loadSavedList);
   if(activeTab==='enviar') loadSavedList();
-  $$('[data-load-quote]').forEach(b=> b.onclick=async ()=>{
-    const p = await storageGet('quote:'+b.dataset.loadQuote, false, null);
-    if(p){ PROJECT = migrateProject(p); activeTab='cliente'; renderApp(); toast('Proyecto cargado'); }
-  });
-  $$('[data-del-quote]').forEach(b=> b.onclick=async ()=>{
-    await storageDelete('quote:'+b.dataset.delQuote, false);
-    loadSavedList();
-  });
 }
 
 function refreshLiveStats(){
