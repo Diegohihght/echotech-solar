@@ -719,6 +719,16 @@ function onCanvasDown(evt){
     drawCanvas();
     return;
   }
+  if(mode==='rotar'){
+    const hit = PROJECT.render.panels.slice().reverse().find(pn=> pt.x>=pn.x && pt.x<=pn.x+pn.w && pt.y>=pn.y && pt.y<=pn.y+pn.h);
+    if(hit){
+      const cx = hit.x+hit.w/2, cy = hit.y+hit.h/2;
+      const newW = hit.h, newH = hit.w;
+      hit.x = cx-newW/2; hit.y = cy-newH/2; hit.w = newW; hit.h = newH;
+      drawCanvas();
+    }
+    return;
+  }
   if(mode==='borrar'){
     const idx = PROJECT.render.panels.slice().reverse().findIndex(pn=> pt.x>=pn.x && pt.x<=pn.x+pn.w && pt.y>=pn.y && pt.y<=pn.y+pn.h);
     if(idx>=0){
@@ -1466,6 +1476,7 @@ function renderRenderTab(){
     <div class="canvas-toolbar">
       <label class="btn sm" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="techo" checked style="margin:0;"> Dibujar techo</label>
       <label class="btn sm" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="panel" style="margin:0;"> Colocar/mover panel</label>
+      <label class="btn sm" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="rotar" style="margin:0;"> 🔄 Rotar panel</label>
       <label class="btn sm" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="borrar" style="margin:0;"> Borrar panel</label>
       <label class="btn sm gold" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="calibrar" style="margin:0;"> 📏 Calibrar escala</label>
     </div>
@@ -1485,7 +1496,7 @@ function renderRenderTab(){
       </div>
       <div class="field"><label>Separación entre paneles (cm)</label><input id="f-spacing" type="number" value="${r.spacingCm}"></div>
     </div>
-    <p class="help">Modo diagrama: haz clic para marcar las esquinas del techo y usa "Auto-acomodar". Modo foto: sube la imagen aérea y coloca los paneles manualmente arrastrándolos. Ajusta la escala para que el tamaño del panel se vea realista.</p>
+    <p class="help">Modo diagrama: haz clic para marcar las esquinas del techo y usa "Auto-acomodar". Modo foto: sube la imagen aérea y coloca los paneles manualmente arrastrándolos. "Rotar panel": toca un panel para girarlo 90° (útil cuando un panel necesita ir distinto al resto de la fila). Ajusta la escala para que el tamaño del panel se vea realista.</p>
   </div>
   `;
 }
