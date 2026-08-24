@@ -300,11 +300,12 @@ async function storageListKeys(prefix, shared=false){
       const r = await window.storage.list(prefix, shared);
       return r ? r.keys : [];
     }
-    const pre = lsKey(prefix||'', shared);
+    const scopePrefix = shared ? 'echotech:shared:' : 'echotech:priv:';
+    const pre = scopePrefix + (prefix||'');
     const out = [];
     for(let i=0;i<localStorage.length;i++){
       const k = localStorage.key(i);
-      if(k && k.startsWith(pre)) out.push(k.slice(pre.length));
+      if(k && k.startsWith(pre)) out.push(k.slice(scopePrefix.length)); // conserva el prefijo (ej. "quote:") para poder releerlo después
     }
     return out;
   }catch(e){ return []; }
