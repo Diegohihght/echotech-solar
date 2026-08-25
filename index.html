@@ -346,14 +346,31 @@ const DEFAULT_PANELS = [
 ];
 const DEFAULT_INVERTERS = [
   {id:'inv-growatt10', marca:'Growatt', modelo:'MIN 10000TL-X', pac:10000, pdcMax:13000, numMppt:2,
-   vMax:550, vArranque:100, mpptMin:60, mpptMax:550, imaxMppt:14.0, costo:22000, margen:0, tipo:'String (red)'},
+   vMax:550, vArranque:100, mpptMin:60, mpptMax:550, imaxMppt:14.0, iOutNom:45.5, costo:22000, margen:0, tipo:'String (red)'},
   {id:'inv-growatt75', marca:'Growatt', modelo:'MIN 7500TL-X', pac:7500, pdcMax:9750, numMppt:2,
-   vMax:550, vArranque:100, mpptMin:60, mpptMax:550, imaxMppt:12.5, costo:17500, margen:0, tipo:'String (red)'},
+   vMax:550, vArranque:100, mpptMin:60, mpptMax:550, imaxMppt:12.5, iOutNom:34.1, costo:17500, margen:0, tipo:'String (red)'},
   {id:'inv-growatt5', marca:'Growatt', modelo:'MIN 5000TL-X', pac:5000, pdcMax:6500, numMppt:2,
-   vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11.0, costo:12500, margen:0, tipo:'String (red)'},
+   vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11.0, iOutNom:22.7, costo:12500, margen:0, tipo:'String (red)'},
   {id:'inv-growatt3', marca:'Growatt', modelo:'MIN 3000TL-X', pac:3000, pdcMax:3900, numMppt:2,
-   vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11.0, costo:8900, margen:0, tipo:'String (red)'},
+   vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11.0, iOutNom:13.6, costo:8900, margen:0, tipo:'String (red)'},
 ];
+
+// Ampacidad de cable de cobre (referencia THHN/THWN-2 90°C, NOM-001-SEDE tabla equivalente)
+// y tamaños comerciales de interruptor/fusible — para sugerir calibre y protección preliminares.
+const AWG_AMPACITY = [
+  {awg:'14 AWG', amp:20}, {awg:'12 AWG', amp:25}, {awg:'10 AWG', amp:35}, {awg:'8 AWG', amp:50},
+  {awg:'6 AWG', amp:65}, {awg:'4 AWG', amp:85}, {awg:'3 AWG', amp:100}, {awg:'2 AWG', amp:115},
+  {awg:'1 AWG', amp:130}, {awg:'1/0 AWG', amp:150}, {awg:'2/0 AWG', amp:175}, {awg:'3/0 AWG', amp:200}, {awg:'4/0 AWG', amp:230},
+];
+const BREAKER_SIZES = [15,20,25,30,35,40,45,50,60,70,80,90,100,110,125,150,175,200,225,250,300,350,400,450,500,600];
+
+function awgFromCurrent(amps){
+  const found = AWG_AMPACITY.find(r=>r.amp>=amps);
+  return found ? found.awg : `> ${AWG_AMPACITY[AWG_AMPACITY.length-1].awg} (verifica con tabla ampliada)`;
+}
+function breakerFromCurrent(amps){
+  return BREAKER_SIZES.find(b=>b>=amps) || BREAKER_SIZES[BREAKER_SIZES.length-1];
+}
 
 const DEFAULT_QUOTE_ITEMS = () => ([
   {id:uid(), desc:'Arreglo fotovoltaico', unidad:'LOTE', cantidad:1, precio:0, auto:'panel'},
@@ -587,6 +604,18 @@ function calcMateriales(p, calc){
   return {lineas: todas, total, numCadenas};
 }
 
+
+function calcProtecciones(p, calc){
+  if(!calc.panel || !calc.inversorUsado) return null;
+  const iDC = calc.panel.imp * 1.25; // NOM-001-SEDE: 125% de corriente continua para el conductor
+  const awgDC = awgFromCurrent(iDC);
+  const protDC = breakerFromCurrent(calc.panel.isc * 1.56); // 125% x 125% aplicado a Isc
+  const iOutNom = Number(calc.inversorUsado.iOutNom) || (calc.inversorUsado.pac/220);
+  const iCA = iOutNom * 1.25;
+  const awgCA = awgFromCurrent(iCA);
+  const protCA = breakerFromCurrent(iCA);
+  return {iDC, awgDC, protDC, iOutNom, iCA, awgCA, protCA};
+}
 
 function recomendaciones(p, calc){
   const tips = [];
@@ -1324,6 +1353,7 @@ function invFormFields(v){
       <div class="field"><label>Rango MPPT mín (V)</label><input data-k="mpptMin" type="number" value="${v.mpptMin}"></div>
       <div class="field"><label>Rango MPPT máx (V)</label><input data-k="mpptMax" type="number" value="${v.mpptMax}"></div>
       <div class="field"><label>Corriente máx. por MPPT (A)</label><input data-k="imaxMppt" type="number" step="0.01" value="${v.imaxMppt}"></div>
+      <div class="field"><label>Corriente de salida CA nominal (A)</label><input data-k="iOutNom" type="number" step="0.01" value="${v.iOutNom ?? Math.round((v.pac/220)*10)/10}"></div>
       <div class="field"><label>Tu costo por inversor (MXN)</label><input data-k="costo" type="number" step="0.01" value="${v.costo}"></div>
       <div class="field"><label>Margen (%)</label><input data-k="margen" type="number" step="0.5" value="${v.margen||0}"></div>
     </div>
@@ -1371,6 +1401,7 @@ function openModal(title, bodyHtml, onSave){
 function renderDimensionTab(){
   const calc = calcDimensionamiento(PROJECT);
   const tips = recomendaciones(PROJECT, calc);
+  const prot = calcProtecciones(PROJECT, calc);
   const panelOpts = CATALOG.panels.map(p=>`<option value="${p.id}" ${p.id===PROJECT.dim.panelId?'selected':''}>${p.marca} ${p.modelo} (${p.wp}Wp)</option>`).join('');
 
   return `
@@ -1418,6 +1449,31 @@ function renderDimensionTab(){
       <p class="help">Verificación preliminar. Para trámite formal ante CFE, valida con software de diseño certificado o tu memoria de cálculo.</p>
     </div>` : ''}
   </div>
+
+  ${prot ? `
+  <div class="card">
+    <div class="eyebrow">Protecciones y calibres</div>
+    <h3>Cable y protecciones recomendados (preliminar)</h3>
+    <div class="grid">
+      <div class="card" style="background:#F5F9FC; box-shadow:none; margin:0;">
+        <h4 style="font-size:13px;">Lado DC (por cadena)</h4>
+        <table class="tbl">
+          <tr><td>Corriente de diseño (Imp × 1.25)</td><td>${fmtNum(prot.iDC,2)} A</td></tr>
+          <tr><td>Calibre de cable sugerido</td><td><b>${prot.awgDC}</b></td></tr>
+          <tr><td>Protección DC sugerida (Isc × 1.56)</td><td><b>${prot.protDC} A</b></td></tr>
+        </table>
+      </div>
+      <div class="card" style="background:#F5F9FC; box-shadow:none; margin:0;">
+        <h4 style="font-size:13px;">Lado CA (salida del inversor)</h4>
+        <table class="tbl">
+          <tr><td>Corriente de diseño (I salida × 1.25)</td><td>${fmtNum(prot.iCA,2)} A</td></tr>
+          <tr><td>Calibre de cable sugerido</td><td><b>${prot.awgCA}</b></td></tr>
+          <tr><td>Protección CA sugerida</td><td><b>${prot.protCA} A</b></td></tr>
+        </table>
+      </div>
+    </div>
+    <p class="help">Ampacidad de referencia (cobre THHN/THWN-2, sin factores de agrupamiento ni temperatura ambiente extrema). Esto es un punto de partida — ajusta según número de conductores por ducto, temperatura del sitio y tu memoria de cálculo formal antes de comprar material o tramitar ante CFE.</p>
+  </div>` : ''}
 
   <div class="card">
     <div class="eyebrow">Estructura e instalación</div>
@@ -1476,13 +1532,28 @@ function refreshMaterialesPreview(){
 function insertarMaterialesEnCotizacion(){
   const calc = calcDimensionamiento(PROJECT);
   const mat = calcMateriales(PROJECT, calc);
+  const prot = calcProtecciones(PROJECT, calc);
   if(!mat.lineas.length){ toast('No hay materiales para agregar todavía.'); return; }
   // Quita los renglones genéricos de cableado/tierras y cualquier desglose de materiales insertado antes
   PROJECT.cot.items = PROJECT.cot.items.filter(it=> !it.matAuto && it.genericTag!=='cableado' && it.genericTag!=='tierras');
-  const nuevos = mat.lineas.map(l=> ({
-    id: uid(), desc: l.nombre, unidad: l.unidad, cantidad: l.unidad==='%' ? 1 : l.cantidad,
-    precio: l.unidad==='%' ? l.importe : l.precio, matAuto: true,
-  }));
+  const nuevos = mat.lineas.map(l=> {
+    let desc = l.nombre;
+    // Anexa el calibre/protección calculado a los renglones que correspondan, para que la
+    // cotización refleje el cable y la protección real que se debe comprar.
+    if(prot){
+      const n = l.nombre.toLowerCase();
+      const esCableDC = n.includes('cable') && /dc|fotovoltaico|arreglo.?inversor/.test(n);
+      const esCableCA = n.includes('cable') && /ca\b|thhn|inversor.?tablero/.test(n);
+      const esProtDC = (n.includes('interruptor')||n.includes('protec')) && /\bdc\b/.test(n);
+      const esProtCA = (n.includes('interruptor')||n.includes('protec')) && /\bca\b/.test(n);
+      if(esCableDC) desc += ` — calibre sugerido ${prot.awgDC}`;
+      else if(esCableCA) desc += ` — calibre sugerido ${prot.awgCA}`;
+      else if(esProtDC) desc += ` — ${prot.protDC}A sugeridos`;
+      else if(esProtCA) desc += ` — ${prot.protCA}A sugeridos`;
+    }
+    return {id: uid(), desc, unidad: l.unidad, cantidad: l.unidad==='%' ? 1 : l.cantidad,
+      precio: l.unidad==='%' ? l.importe : l.precio, matAuto: true};
+  });
   // Se insertan después del arreglo fotovoltaico, antes del inversor
   const idxInversor = PROJECT.cot.items.findIndex(it=> it.auto==='inversor');
   if(idxInversor>=0) PROJECT.cot.items.splice(idxInversor, 0, ...nuevos);
@@ -1859,7 +1930,7 @@ function attachTabHandlers(){
     });
   });
   $('#btnAddInv')?.addEventListener('click', ()=>{
-    const blank = {id:uid(), marca:'', modelo:'', pac:5000, pdcMax:6500, numMppt:2, vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11, costo:12000, margen:25, tipo:'String (red)'};
+    const blank = {id:uid(), marca:'', modelo:'', pac:5000, pdcMax:6500, numMppt:2, vMax:550, vArranque:80, mpptMin:60, mpptMax:500, imaxMppt:11, iOutNom:22.7, costo:12000, margen:25, tipo:'String (red)'};
     openModal('Nuevo inversor', invFormFields(blank), async (data)=>{
       CATALOG.inverters.push({...blank, ...data});
       await storageSet('catalog-inverters', CATALOG.inverters, false);
@@ -2047,6 +2118,7 @@ async function boot(){
   // Migración: catálogos guardados antes de tener costo+margen
   CATALOG.panels.forEach(ensureCostoMargen);
   CATALOG.inverters.forEach(ensureCostoMargen);
+  CATALOG.inverters.forEach(v=>{ if(v.iOutNom===undefined) v.iOutNom = Math.round((v.pac/220)*10)/10; });
   Object.values(CATALOG.estructuras).forEach(e=> (e.items||[]).forEach(ensureCostoMargen));
   CATALOG.comunes.forEach(ensureCostoMargen);
 
