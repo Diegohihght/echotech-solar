@@ -150,6 +150,7 @@ table.tbl tr:last-child td{border-bottom:none;}
 .tip.warn{background:#FFF6E8; border-color:#F3D9A5;}
 .tip.bad{background:#FDEDED; border-color:#F3C6C6;}
 .tip.good{background:#EEF8EF; border-color:#C9E7CD;}
+.tip.blue{background:#EAF4FC; border-color:#BFE0F5;}
 .tip b{color:var(--ink);}
 
 .seg{display:flex; background:#EEF3F8; border-radius:11px; padding:3px; gap:3px;}
@@ -373,10 +374,8 @@ function breakerFromCurrent(amps){
 }
 
 const DEFAULT_QUOTE_ITEMS = () => ([
-  {id:uid(), desc:'Arreglo fotovoltaico', unidad:'LOTE', cantidad:1, precio:0, auto:'panel'},
   {id:uid(), desc:'Conexión y cableado del sistema fotovoltaico (cable, ductos, soportería)', unidad:'LOTE', cantidad:1, precio:6800, genericTag:'cableado'},
   {id:uid(), desc:'Sistema de tierras / aterrizado del arreglo', unidad:'LOTE', cantidad:1, precio:2200, genericTag:'tierras'},
-  {id:uid(), desc:'Inversor', unidad:'PZ', cantidad:1, precio:0, auto:'inversor'},
   {id:uid(), desc:'Tablero combinador con protecciones', unidad:'LOTE', cantidad:1, precio:3400},
   {id:uid(), desc:'Gestoría y trámite de interconexión ante CFE', unidad:'LOTE', cantidad:1, precio:4500},
 ]);
@@ -1425,6 +1424,7 @@ function renderDimensionTab(){
       <div class="mini-stat"><div class="v">${fmtNum(calc.genMensual,0)}</div><div class="k">kWh/mes generados (est.)</div></div>
       <div class="mini-stat"><div class="v">${fmtMoney(calc.ahorroMensual)}</div><div class="k">Ahorro mensual (est.)</div></div>
     </div>
+    <button class="btn primary sm" id="btnAddPanelCot" style="margin-top:10px;">${PROJECT.cot.items.some(it=>it.auto==='panel') ? '✓ Actualizar en la cotización' : '+ Agregar a la cotización'}</button>
   </div>
 
   <div class="card">
@@ -1435,7 +1435,8 @@ function renderDimensionTab(){
       <div class="mini-stat"><div class="v">${fmtNum(calc.dcAc,2)}</div><div class="k">Relación DC/AC</div></div>
       <div class="mini-stat"><div class="v">${calc.inversorUsado.pac/1000}kW</div><div class="k">Potencia AC nominal</div></div>
       <div class="mini-stat"><div class="v">${calc.inversorUsado.numMppt}</div><div class="k"># MPPT</div></div>
-    </div>` : ''}
+    </div>
+    <button class="btn primary sm" id="btnAddInvCot" style="margin-top:4px;">${PROJECT.cot.items.some(it=>it.auto==='inversor') ? '✓ Actualizar en la cotización' : '+ Agregar a la cotización'}</button>` : ''}
     <p class="help">La selección automática busca en tu catálogo el inversor cuya relación DC/AC quede más cercana a 1.15. Cambia la selección manual en la pestaña Catálogo.</p>
     ${calc.cadena ? `
     <div class="card" style="background:#F5F9FC; box-shadow:none; margin-top:8px;">
@@ -1529,6 +1530,27 @@ function refreshMaterialesPreview(){
   $('#btnInsertarMateriales')?.addEventListener('click', insertarMaterialesEnCotizacion);
 }
 
+function agregarPanelACotizacion(){
+  const calc = calcDimensionamiento(PROJECT);
+  if(!calc.panel || calc.numModulos<=0){ toast('Define el consumo del cliente en la pestaña Cliente y CFE primero.'); return; }
+  PROJECT.cot.items = PROJECT.cot.items.filter(it=> it.auto!=='panel');
+  PROJECT.cot.items.unshift({id:uid(), desc:'Arreglo fotovoltaico', unidad:'LOTE', cantidad:1, precio:0, auto:'panel'});
+  toast('Arreglo fotovoltaico agregado a la cotización');
+  activeTab = 'cotizacion';
+  renderApp();
+}
+function agregarInversorACotizacion(){
+  const calc = calcDimensionamiento(PROJECT);
+  if(!calc.inversorUsado){ toast('No hay inversor disponible — revisa tu catálogo.'); return; }
+  PROJECT.cot.items = PROJECT.cot.items.filter(it=> it.auto!=='inversor');
+  const idxPanel = PROJECT.cot.items.findIndex(it=>it.auto==='panel');
+  const item = {id:uid(), desc:'Inversor', unidad:'PZ', cantidad:1, precio:0, auto:'inversor'};
+  if(idxPanel>=0) PROJECT.cot.items.splice(idxPanel+1, 0, item); else PROJECT.cot.items.unshift(item);
+  toast('Inversor agregado a la cotización');
+  activeTab = 'cotizacion';
+  renderApp();
+}
+
 function insertarMaterialesEnCotizacion(){
   const calc = calcDimensionamiento(PROJECT);
   const mat = calcMateriales(PROJECT, calc);
@@ -1612,6 +1634,8 @@ function renderCotizacionTab(){
   const subtotal = items.reduce((s,it)=> s + (Number(it.cantidad)||0)*(Number(it.precio)||0), 0);
   const iva = subtotal * (Number(PROJECT.cot.ivaRate)/100);
   const total = subtotal+iva;
+  const hasPanelItem = items.some(it=>it.auto==='panel');
+  const hasInvItem = items.some(it=>it.auto==='inversor');
 
   const rowsHtml = items.map(it=>`
     <tr data-item="${it.id}">
@@ -1627,6 +1651,11 @@ function renderCotizacionTab(){
   <div class="card">
     <div class="eyebrow">Paso 6</div>
     <h3>Desglose de cotización</h3>
+    ${(!hasPanelItem || !hasInvItem) ? `<div class="tip blue"><span class="ic">💡</span><span>
+      Aún no has agregado ${!hasPanelItem && !hasInvItem ? 'el <b>arreglo fotovoltaico</b> ni el <b>inversor</b>' : !hasPanelItem ? 'el <b>arreglo fotovoltaico</b>' : 'el <b>inversor</b>'} a esta cotización — hazlo desde la pestaña Dimensionamiento, o aquí mismo:
+      ${!hasPanelItem ? '<button class="btn sm primary" id="btnAddPanelItem" style="margin:4px 6px 0 0;">+ Agregar arreglo fotovoltaico</button>' : ''}
+      ${!hasInvItem ? '<button class="btn sm primary" id="btnAddInvItem" style="margin:4px 0 0;">+ Agregar inversor</button>' : ''}
+    </span></div>` : ''}
     <div style="overflow-x:auto;">
     <table class="tbl">
       <thead><tr><th>Descripción</th><th>Unidad</th><th>Cant.</th><th>Precio</th><th>Importe</th><th></th></tr></thead>
@@ -2009,6 +2038,8 @@ function attachTabHandlers(){
 
   // Dimensionamiento
   $('#f-panelselect')?.addEventListener('change', e=>{ PROJECT.dim.panelId=e.target.value; renderApp(); });
+  $('#btnAddPanelCot')?.addEventListener('click', agregarPanelACotizacion);
+  $('#btnAddInvCot')?.addEventListener('click', agregarInversorACotizacion);
   $('#f-tipoestructura')?.addEventListener('change', e=>{ PROJECT.dim.tipoEstructura=e.target.value; refreshMaterialesPreview(); });
   $('#f-distanciadc')?.addEventListener('input', e=>{ PROJECT.dim.distanciaArregloInversor=Number(e.target.value); refreshMaterialesPreview(); });
   $('#f-distanciaac')?.addEventListener('input', e=>{ PROJECT.dim.distanciaInversorTablero=Number(e.target.value); refreshMaterialesPreview(); });
@@ -2064,6 +2095,16 @@ function attachTabHandlers(){
   }));
   $$('[data-item-del]').forEach(b=> b.onclick=()=>{ PROJECT.cot.items = PROJECT.cot.items.filter(x=>x.id!==b.dataset.itemDel); renderApp(); });
   $('#btnAddItem')?.addEventListener('click', ()=>{ PROJECT.cot.items.push({id:uid(), desc:'Nueva partida', unidad:'LOTE', cantidad:1, precio:0}); renderApp(); });
+  $('#btnAddPanelItem')?.addEventListener('click', ()=>{
+    PROJECT.cot.items.unshift({id:uid(), desc:'Arreglo fotovoltaico', unidad:'LOTE', cantidad:1, precio:0, auto:'panel'});
+    renderApp();
+  });
+  $('#btnAddInvItem')?.addEventListener('click', ()=>{
+    const idxPanel = PROJECT.cot.items.findIndex(it=>it.auto==='panel');
+    const item = {id:uid(), desc:'Inversor', unidad:'PZ', cantidad:1, precio:0, auto:'inversor'};
+    if(idxPanel>=0) PROJECT.cot.items.splice(idxPanel+1, 0, item); else PROJECT.cot.items.unshift(item);
+    renderApp();
+  });
   $('#f-ivarate')?.addEventListener('input', e=>{ PROJECT.cot.ivaRate=Number(e.target.value); renderApp(); });
   $('#f-notas')?.addEventListener('input', e=>{ PROJECT.cot.notas=e.target.value; });
 
