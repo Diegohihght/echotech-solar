@@ -455,7 +455,7 @@ function blankProject(){
     cliente: {nombre:'', telefono:'', email:'', direccion:'', municipio:''},
     medidores: [blankMedidor(1)],
     sitio: {estado:'Puebla', hsp: HSP_ESTADOS['Puebla'], eficiencia:0.77, tempMin:8, tempMax:38},
-    dim: {panelId: DEFAULT_PANELS[0].id, inversorAutoId:null, inversorManualId:null, numModulos:0, numInversores:1, modulosPorCadena:null, tipoEstructura:'inclinada', distanciaArregloInversor:8, distanciaInversorTablero:3},
+    dim: {panelId: DEFAULT_PANELS[0].id, inversorAutoId:null, inversorManualId:null, numModulos:0, numInversores:1, modulosPorCadena:null, tipoEstructura:'inclinada', distanciaArregloInversor:8, distanciaInversorTablero:3, modulosExtra:0},
     render: {mode:'diagram', roof:[], panels:[], photoData:null, scale:0.018, orientation:'portrait', spacingCm:2, marginCm:30},
     cot: {items: DEFAULT_QUOTE_ITEMS(), ivaRate:16, notas:'Cotización válida por 15 días naturales. No incluye obra civil no especificada ni trámites adicionales fuera de interconexión CFE.'},
   };
@@ -487,6 +487,7 @@ function migrateProject(p){
   }
   if(p.dim.distanciaArregloInversor===undefined) p.dim.distanciaArregloInversor = 8;
   if(p.dim.distanciaInversorTablero===undefined) p.dim.distanciaInversorTablero = 3;
+  if(p.dim.modulosExtra===undefined) p.dim.modulosExtra = 0;
   return p;
 }
 
@@ -513,7 +514,9 @@ function calcDimensionamiento(p){
   const kwpReq = hsp>0 && eff>0 ? diario / (hsp*eff) : 0;
 
   const panel = getPanel(p.dim.panelId);
-  const numModulos = panel && kwpReq>0 ? Math.ceil((kwpReq*1000) / panel.wp) : 0;
+  const numModulosBase = panel && kwpReq>0 ? Math.ceil((kwpReq*1000) / panel.wp) : 0;
+  const modulosExtra = Number(p.dim.modulosExtra) || 0;
+  const numModulos = Math.max(0, numModulosBase + modulosExtra);
   const kwpInstalado = panel ? (numModulos * panel.wp)/1000 : 0;
 
   // Selección automática de inversor dentro de catálogo (relación DC/AC 0.8–1.3, óptimo ~1.15)
@@ -558,7 +561,7 @@ function calcDimensionamiento(p){
     cadena = {vocFrio, vmpCaliente, seriesMin, seriesMax, valido, maxStringsPorMppt, numMppt:inversorUsado.numMppt};
   }
 
-  return {diario, kwpReq, panel, numModulos, kwpInstalado, inversorAuto, inversorUsado, dcAc, genMensual, ahorroMensual, tarifaPromedioPonderada, cadena};
+  return {diario, kwpReq, panel, numModulos, numModulosBase, modulosExtra, kwpInstalado, inversorAuto, inversorUsado, dcAc, genMensual, ahorroMensual, tarifaPromedioPonderada, cadena};
 }
 
 function calcMateriales(p, calc){
@@ -1418,9 +1421,12 @@ function renderDimensionTab(){
   <div class="card">
     <div class="eyebrow">Configuración</div>
     <h3>Panel a utilizar</h3>
-    <div class="field"><select id="f-panelselect">${panelOpts}</select></div>
+    <div class="grid">
+      <div class="field"><label>Modelo</label><select id="f-panelselect">${panelOpts}</select></div>
+      <div class="field"><label>Módulos extra (opcional, solo esta cotización)</label><input id="f-modulosextra" type="number" step="1" value="${PROJECT.dim.modulosExtra||0}"></div>
+    </div>
     <div class="mini-stats">
-      <div class="mini-stat"><div class="v">${calc.numModulos}</div><div class="k">Módulos necesarios</div></div>
+      <div class="mini-stat"><div class="v">${calc.numModulos}</div><div class="k">Módulos totales${calc.modulosExtra ? ` (${calc.numModulosBase} calc. + ${calc.modulosExtra} extra)` : ''}</div></div>
       <div class="mini-stat"><div class="v">${fmtNum(calc.genMensual,0)}</div><div class="k">kWh/mes generados (est.)</div></div>
       <div class="mini-stat"><div class="v">${fmtMoney(calc.ahorroMensual)}</div><div class="k">Ahorro mensual (est.)</div></div>
     </div>
@@ -1750,11 +1756,69 @@ function renderEnviarTab(){
     <p class="help">"Ver / imprimir" abre el diálogo de impresión del navegador — ahí puedes elegir "Guardar como PDF" para enviarlo por correo o WhatsApp.</p>
   </div>
   <div class="card">
+    <div class="eyebrow">Transferir a otro dispositivo</div>
+    <h3>Respaldo completo</h3>
+    <p class="help">Tu catálogo y cotizaciones se guardan solo en el navegador de esta computadora — no se sincronizan solos con otro equipo. Descarga este respaldo aquí y ábrelo con "Importar respaldo" en la otra computadora/navegador para seguir trabajando con el mismo catálogo, configuración y todas tus cotizaciones guardadas.</p>
+    <div class="btn-row">
+      <button class="btn primary" id="btnExportBackup">⬇ Exportar respaldo completo</button>
+      <button class="btn" id="btnImportBackup">⬆ Importar respaldo</button>
+      <input type="file" accept="application/json" id="f-importbackup" style="display:none;">
+    </div>
+  </div>
+  <div class="card">
     <div class="eyebrow">Historial</div>
     <div class="card-head"><h3>Mis cotizaciones guardadas</h3><button class="btn sm ghost" id="btnRefreshList">↻ Actualizar</button></div>
     <div id="savedList"><div class="empty">Cargando…</div></div>
   </div>
   `;
+}
+
+async function exportarRespaldoCompleto(){
+  const keys = await storageListKeys('quote:', false);
+  const quotes = {};
+  for(const k of keys){
+    const q = await storageGet(k, false, null);
+    if(q) quotes[k] = q;
+  }
+  const backup = {
+    tipo: 'echotech-solar-respaldo', version: 1, exportadoEn: new Date().toISOString(),
+    settings: SETTINGS,
+    catalog: { panels: CATALOG.panels, inverters: CATALOG.inverters, estructuras: CATALOG.estructuras, comunes: CATALOG.comunes },
+    quotes,
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `EchoTech_Respaldo_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Respaldo descargado ✓');
+}
+
+async function importarRespaldoCompleto(file){
+  let backup;
+  try{
+    const text = await file.text();
+    backup = JSON.parse(text);
+  }catch(e){ toast('No se pudo leer el archivo — ¿es un respaldo válido?'); return; }
+  if(!backup || backup.tipo!=='echotech-solar-respaldo' || !backup.catalog){
+    toast('Este archivo no parece ser un respaldo de EchoTech Solar.'); return;
+  }
+  if(!confirm('Esto reemplaza tu catálogo, configuración y agrega/actualiza las cotizaciones del respaldo en este dispositivo. ¿Continuar?')) return;
+  if(backup.settings){ SETTINGS = {...SETTINGS, ...backup.settings}; await storageSet('settings', SETTINGS, false); }
+  if(backup.catalog.panels){ CATALOG.panels = backup.catalog.panels; await storageSet('catalog-panels', CATALOG.panels, false); }
+  if(backup.catalog.inverters){ CATALOG.inverters = backup.catalog.inverters; await storageSet('catalog-inverters', CATALOG.inverters, false); }
+  if(backup.catalog.estructuras){ CATALOG.estructuras = backup.catalog.estructuras; await storageSet('materiales-estructuras', CATALOG.estructuras, false); }
+  if(backup.catalog.comunes){ CATALOG.comunes = backup.catalog.comunes; await storageSet('materiales-comunes', CATALOG.comunes, false); }
+  let n = 0;
+  if(backup.quotes){
+    for(const [k,q] of Object.entries(backup.quotes)){
+      await storageSet(k, q, false);
+      n++;
+    }
+  }
+  toast(`Respaldo importado ✓ (${n} cotizaciones)`);
+  renderApp();
 }
 
 async function loadSavedList(){
@@ -2038,6 +2102,7 @@ function attachTabHandlers(){
 
   // Dimensionamiento
   $('#f-panelselect')?.addEventListener('change', e=>{ PROJECT.dim.panelId=e.target.value; renderApp(); });
+  $('#f-modulosextra')?.addEventListener('input', e=>{ PROJECT.dim.modulosExtra=Number(e.target.value)||0; renderApp(); });
   $('#btnAddPanelCot')?.addEventListener('click', agregarPanelACotizacion);
   $('#btnAddInvCot')?.addEventListener('click', agregarInversorACotizacion);
   $('#f-tipoestructura')?.addEventListener('change', e=>{ PROJECT.dim.tipoEstructura=e.target.value; refreshMaterialesPreview(); });
@@ -2117,6 +2182,13 @@ function attachTabHandlers(){
     catch(e){ openModal('Copia este resumen', `<textarea style="width:100%;height:220px;">${text}</textarea>`, ()=>{}); }
   });
   $('#btnCsv')?.addEventListener('click', exportCsv);
+  $('#btnExportBackup')?.addEventListener('click', exportarRespaldoCompleto);
+  $('#btnImportBackup')?.addEventListener('click', ()=> $('#f-importbackup')?.click());
+  $('#f-importbackup')?.addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    e.target.value = '';
+    if(file) await importarRespaldoCompleto(file);
+  });
   $('#btnRefreshList')?.addEventListener('click', loadSavedList);
   if(activeTab==='enviar') loadSavedList();
 }
