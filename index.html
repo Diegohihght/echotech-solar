@@ -326,14 +326,14 @@ const HSP_ESTADOS = {
   "Veracruz":4.9, "Yucatán":5.5, "Zacatecas":5.8
 };
 
-const TARIFAS_CFE = ["1","1A","1B","1C","1D","1E","1F","PDBT (Pequeña Demanda BT)","DAC (Doméstica de Alto Consumo)","GDBT (Gral. Demanda BT)","GDMTH","OM"];
+const TARIFAS_CFE = ["1","1A","1B","1C","1D","1E","1F","PDBT (Pequeña Demanda BT)","DAC (Doméstica de Alto Consumo)","GDBT (Gral. Demanda BT)","GDMTO","GDMTH","OM"];
 
 // $/kWh de referencia por tarifa — valores aproximados y editables; CFE los actualiza
 // periódicamente, así que ajústalos a las tarifas publicadas vigentes.
 const DEFAULT_TARIFAS_PRECIO = {
   "1":1.10, "1A":1.15, "1B":1.20, "1C":1.25, "1D":1.30, "1E":1.35, "1F":1.40,
   "PDBT (Pequeña Demanda BT)":3.40, "DAC (Doméstica de Alto Consumo)":6.20,
-  "GDBT (Gral. Demanda BT)":3.90, "GDMTH":2.70, "OM":3.60,
+  "GDBT (Gral. Demanda BT)":3.90, "GDMTO":2.90, "GDMTH":2.70, "OM":3.60,
 };
 
 const DEFAULT_PANELS = [
