@@ -2240,7 +2240,12 @@ async function boot(){
   if(!(await storageGet('materiales-estructuras', false, null))) await storageSet('materiales-estructuras', CATALOG.estructuras, false);
   if(!(await storageGet('materiales-comunes', false, null))) await storageSet('materiales-comunes', CATALOG.comunes, false);
   const savedSettings = await storageGet('settings', false, null);
-  if(savedSettings) SETTINGS = {...SETTINGS, ...savedSettings};
+  if(savedSettings){
+    SETTINGS = {...SETTINGS, ...savedSettings};
+    // Fusiona tarifa por tarifa en vez de reemplazar todo el objeto — así, cuando yo agrego
+    // una tarifa nueva (como GDMTO), le llega a quien ya tenía configuración guardada de antes.
+    SETTINGS.tarifasPorTipo = {...DEFAULT_TARIFAS_PRECIO, ...(savedSettings.tarifasPorTipo||{})};
+  }
   if(!SETTINGS.tarifasPorTipo) SETTINGS.tarifasPorTipo = {...DEFAULT_TARIFAS_PRECIO};
   PROJECT.dim.panelId = CATALOG.panels[0]?.id;
   PROJECT.cot.ivaRate = SETTINGS.ivaRate;
