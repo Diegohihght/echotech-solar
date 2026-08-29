@@ -1701,7 +1701,7 @@ function renderRenderTab(){
       <button class="${r.mode==='diagram'?'active':''}" data-render-mode="diagram">Diagrama de techo</button>
       <button class="${r.mode==='photo'?'active':''}" data-render-mode="photo">Foto aérea del cliente</button>
     </div>
-    ${r.mode==='photo' ? `<div class="field"><label>Subir foto aérea/satelital</label><input type="file" id="f-photo" accept="image/*"></div>` : ''}
+    ${r.mode==='photo' ? `<div class="field"><label>Subir foto aérea/satelital</label><input type="file" id="f-photo" accept="image/*"><p class="help">Si es de tu iPhone y no carga, puede estar en formato HEIC — comparte la foto por WhatsApp a ti mismo primero (la convierte a JPG automáticamente) y sube esa copia.</p></div>` : ''}
 
     <div class="canvas-toolbar">
       <label class="btn sm" style="display:flex;align-items:center;gap:5px;"><input type="radio" name="drawMode" value="techo" checked style="margin:0;"> Dibujar techo</label>
@@ -2227,22 +2227,44 @@ function attachTabHandlers(){
   $$('[data-render-mode]').forEach(b=> b.onclick=()=>{ PROJECT.render.mode=b.dataset.renderMode; renderApp(); });
   $('#f-photo')?.addEventListener('change', e=>{
     const file = e.target.files[0]; if(!file) return;
+    const nombreArchivo = file.name || '';
+    showOcrOverlay(); // reutilizamos el overlay de carga genérico como indicador visual
+    updateOcrOverlay('recognizing text', 0.3);
+    $('#ocrStatus') && ($('#ocrStatus').textContent = 'Cargando foto…');
     const reader = new FileReader();
+    reader.onerror = ()=>{ hideOcrOverlay(); toast('No se pudo leer el archivo. Intenta con otra foto.'); };
     reader.onload = ev=>{
       const img = new Image();
+      img.onerror = ()=>{
+        hideOcrOverlay();
+        const esHeic = /\.hei[cf]$/i.test(nombreArchivo);
+        openModal('No se pudo mostrar la foto', `
+          <p>${esHeic
+            ? 'Esta foto está en formato <b>HEIC</b> (el que usa la app Fotos del iPhone por default), y la mayoría de los navegadores no pueden mostrarlo en una página web.'
+            : 'El navegador no pudo abrir esta imagen — puede estar dañada o en un formato poco común.'}</p>
+          <p class="help">Solución: en tu iPhone, ve a Ajustes → Cámara → Formatos, y cambia a "Más compatible" (esto guarda tus fotos nuevas como JPG). O, en la app Fotos, toca "Compartir" → "Copiar foto" y pégala en otra app para convertirla, o usa "Duplicar" y exporta como JPG. Luego vuelve a intentar subirla aquí.</p>
+        `, ()=>{});
+      };
       img.onload = ()=>{
-        // Redimensionar/comprimir antes de guardar (para que quepa en el límite de almacenamiento)
-        const maxW = 1100;
-        const scaleDown = Math.min(1, maxW/img.width);
-        const cw = Math.round(img.width*scaleDown), ch = Math.round(img.height*scaleDown);
-        const off = document.createElement('canvas');
-        off.width = cw; off.height = ch;
-        off.getContext('2d').drawImage(img, 0, 0, cw, ch);
-        const dataUrl = off.toDataURL('image/jpeg', 0.82);
-        PROJECT.render.photoData = dataUrl;
-        const finalImg = new Image();
-        finalImg.onload = ()=>{ PROJECT.render._img = finalImg; drawCanvas(); toast('Foto cargada'); };
-        finalImg.src = dataUrl;
+        try{
+          // Redimensionar/comprimir antes de guardar (para que quepa en el límite de almacenamiento)
+          const maxW = 1100;
+          const scaleDown = Math.min(1, maxW/img.width);
+          const cw = Math.round(img.width*scaleDown), ch = Math.round(img.height*scaleDown);
+          if(!cw || !ch){ throw new Error('dimensiones inválidas'); }
+          const off = document.createElement('canvas');
+          off.width = cw; off.height = ch;
+          off.getContext('2d').drawImage(img, 0, 0, cw, ch);
+          const dataUrl = off.toDataURL('image/jpeg', 0.82);
+          PROJECT.render.photoData = dataUrl;
+          const finalImg = new Image();
+          finalImg.onerror = ()=>{ hideOcrOverlay(); toast('No se pudo procesar la foto.'); };
+          finalImg.onload = ()=>{ hideOcrOverlay(); PROJECT.render._img = finalImg; drawCanvas(); toast('Foto cargada ✓'); };
+          finalImg.src = dataUrl;
+        }catch(err){
+          hideOcrOverlay();
+          toast('No se pudo procesar la foto: '+(err.message||'error desconocido'));
+        }
       };
       img.src = ev.target.result;
     };
