@@ -1906,19 +1906,33 @@ function quoteDocHtml(calc, items, subtotal, iva, total){
 
 // Agrupa los renglones de la cotización en 4 conceptos genéricos, sin precios unitarios
 // exactos por partida — para cuando no quieres exponer el desglose fino de costos.
+// Reconoce el grupo de un material por palabras clave en su nombre — es el respaldo para
+// cotizaciones guardadas ANTES de que cada material se etiquetara con su grupo de origen.
+function inferirGrupoMaterial(desc){
+  const d = (desc||'').toLowerCase();
+  if(/mano de obra|traslado|flete|env[ií]o/.test(d)) return 'logistica';
+  if(/gestor[ií]a/.test(d)) return 'logistica';
+  if(/riel|grapa|tri[aá]ngulo|pierna|gancho|poste|ancla|taquete|unicanal|abrazadera|pija|tornillo|l-?foot/.test(d)) return 'estructura';
+  if(/cable|conduit|condulet|licuaflex|mc4|conector|tierra|grounding|\blug\b|\bitm\b|interruptor|protec|combiner|gabinete|zapata|silicona|cintur|advertenc|se[ñn]aliza|tablero combinador/.test(d)) return 'comunes';
+  return null;
+}
+
 function agruparCotizacionDiscreta(items, calc){
   let equipo=0, montura=0, electrico=0, logistica=0, otros=0;
   items.forEach(it=>{
     const importe = (Number(it.cantidad)||0)*(Number(it.precio)||0);
     if(it.auto==='panel' || it.auto==='inversor'){ equipo += importe; return; }
-    if(it.matAuto && it.grupo==='estructura'){ montura += importe; return; }
-    if(it.matAuto && it.grupo==='comunes'){
+
+    let grupo = it.grupo;
+    if(!grupo && (it.matAuto || it.genericTag)) grupo = inferirGrupoMaterial(it.desc);
+    if(!grupo) grupo = inferirGrupoMaterial(it.desc); // también para renglones sueltos/manuales que coincidan por nombre
+
+    if(grupo==='estructura'){ montura += importe; return; }
+    if(grupo==='logistica'){ logistica += importe; return; }
+    if(grupo==='comunes'){
       if(/mano de obra/i.test(it.desc)) logistica += importe; else electrico += importe;
       return;
     }
-    if(it.genericTag==='cableado' || it.genericTag==='tierras'){ electrico += importe; return; }
-    if(/gestor[ií]a/i.test(it.desc)){ logistica += importe; return; }
-    if(/tablero combinador/i.test(it.desc)){ electrico += importe; return; }
     otros += importe;
   });
   const tipoEstructuraNombre = esc((CATALOG.estructuras[PROJECT.dim.tipoEstructura]||{}).nombre
