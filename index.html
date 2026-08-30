@@ -739,9 +739,26 @@ function initCanvas(){
   canvasCtx = canvasEl.getContext('2d');
   canvasCtx.scale(ratio, ratio);
   canvasEl.style.touchAction = 'none';
-  canvasEl.onpointerdown = onCanvasDown;
-  canvasEl.onpointermove = onCanvasMove;
-  canvasEl.onpointerup = onCanvasUp;
+  // Preferimos Pointer Events (cubre mouse + touch + lápiz en un solo API), pero algunas
+  // versiones de Safari de escritorio los soportan mal o no los soportan — por eso siempre
+  // añadimos también mouse/touch como respaldo, con una bandera para no duplicar el evento
+  // en navegadores que sí disparan ambos.
+  let ultimoEventoNativo = 0;
+  const marcarNativo = ()=>{ ultimoEventoNativo = Date.now(); };
+  const yaAtendidoPorPointer = ()=> Date.now()-ultimoEventoNativo < 400;
+
+  canvasEl.onpointerdown = (e)=>{ marcarNativo(); onCanvasDown(e); };
+  canvasEl.onpointermove = (e)=>{ marcarNativo(); onCanvasMove(e); };
+  canvasEl.onpointerup = (e)=>{ marcarNativo(); onCanvasUp(e); };
+
+  canvasEl.onmousedown = (e)=>{ if(!yaAtendidoPorPointer()) onCanvasDown(e); };
+  canvasEl.onmousemove = (e)=>{ if(!yaAtendidoPorPointer()) onCanvasMove(e); };
+  canvasEl.onmouseup = (e)=>{ if(!yaAtendidoPorPointer()) onCanvasUp(e); };
+
+  canvasEl.ontouchstart = (e)=>{ if(!yaAtendidoPorPointer() && e.touches[0]){ e.preventDefault(); onCanvasDown(e.touches[0]); } };
+  canvasEl.ontouchmove = (e)=>{ if(!yaAtendidoPorPointer() && e.touches[0]){ e.preventDefault(); onCanvasMove(e.touches[0]); } };
+  canvasEl.ontouchend = (e)=>{ if(!yaAtendidoPorPointer()) onCanvasUp(e); };
+
   ensurePhotoImageLoaded();
   drawCanvas();
 }
@@ -795,7 +812,7 @@ function onCanvasDown(evt){
   // Sin esto, Safari interpreta el arrastre como gesto de scroll/zoom nativo y
   // deja de mandarle eventos al canvas — es la causa más común de que el render
   // aéreo "deje de funcionar" solo en Safari (Chrome es más permisivo por defecto).
-  evt.preventDefault();
+  if(evt.preventDefault) evt.preventDefault();
   try{ canvasEl.setPointerCapture(evt.pointerId); }catch(e){}
   const pt = canvasPoint(evt);
   const mode = $('input[name="drawMode"]:checked')?.value || 'techo';
@@ -854,7 +871,7 @@ function onCanvasDown(evt){
   }
 }
 function onCanvasMove(evt){
-  if(dragState || rotateState || (PROJECT.render._calibTemp)) evt.preventDefault();
+  if((dragState || rotateState || (PROJECT.render._calibTemp)) && evt.preventDefault) evt.preventDefault();
   const mode = $('input[name="drawMode"]:checked')?.value;
   if(mode==='calibrar' && PROJECT.render._calibTemp){
     PROJECT.render._calibHover = canvasPoint(evt);
